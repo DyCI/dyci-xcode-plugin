@@ -257,7 +257,7 @@
         filePath = [[filePath stringByDeletingPathExtension] stringByAppendingPathExtension:@"m"];
     }
 
-    if ([[filePath pathExtension] isEqualToString:@"m"]) {
+    if ([[filePath pathExtension] isEqualToString:@"m"] || [[filePath pathExtension] isEqualToString:@"mm"]) {
         SFDYCIXCodeHelper *xcode = [SFDYCIXCodeHelper instance];
         XC(PBXTarget) target = [xcode targetInOpenedProjectForFileURL:fileURL];
         if (!target) {
