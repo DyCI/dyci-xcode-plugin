@@ -60,19 +60,41 @@
 }
 
 
+- (NSArray *)suggestedTargetsForFilePath:(NSString *)fullFilePath {
+    Class <XCP(PBXProject >) PBXProject = NSClassFromString(@"PBXProject");
+    // Xcode 6 API
+    if ([(id) PBXProject respondsToSelector:@selector(targetsInAllProjectsForFileReference:justNative:)]) {
+        Class <XCP(PBXReference)> PBXReference = NSClassFromString(@"PBXReference");
+        XC(PBXReference) selectedFileReference = [[PBXReference alloc] initWithPath:fullFilePath];
+        return [PBXProject targetsInAllProjectsForFileReference:selectedFileReference justNative:NO];
+    }
+
+    // Xcode 7.+ API
+    NSMutableArray *targets = [NSMutableArray array];
+    for (id proj in [PBXProject openProjects]) {
+        for (id target in [proj targets]) {
+            if ([target containsFileReferenceForAbsolutePath:fullFilePath]) {
+                [targets addObject:target];
+            }
+        }
+    }
+    return targets;
+
+}
+
 - (id <CDRSXcode_PBXTarget>)targetInOpenedProjectForFileURL:(NSURL *)fileURL {
-    Class <XCP(PBXReference)> PBXReference = NSClassFromString(@"PBXReference");
-    XC(PBXReference) selectedFileReference = [[PBXReference alloc] initWithPath:fileURL.path];
 
     Class <XCP(PBXProject >) PBXProject = NSClassFromString(@"PBXProject");
-    NSArray *suggested_targets = [PBXProject targetsInAllProjectsForFileReference:selectedFileReference
-                                                                       justNative:NO];
+    NSArray *suggested_targets = [self suggestedTargetsForFilePath:fileURL.path];
 
     [self.console debug:[NSString stringWithFormat:@"Targets : %@", suggested_targets]];
 
     [self.console debug:[NSString stringWithFormat:@"Projects %@", [PBXProject openProjects]]];
 
     // TODO: Find a better way to do it :)
+    id workspaceWindowController = [NSClassFromString(@"IDEWorkspaceWindow") valueForKey:@"lastActiveWorkspaceWindowController"];
+    [self.console debug:[NSString stringWithFormat:@"Window controller is : %@", workspaceWindowController]];
+
     NSArray *activeRunContextTargetsIds = [NSClassFromString(@"IDEWorkspaceWindow")
         valueForKeyPath:
             @"lastActiveWorkspaceWindowController."

@@ -48,7 +48,18 @@
     }
 
     XC(PBXTargetBuildContext) buildContext = target.targetBuildContext;
-    NSArray *commands = [buildContext commands];
+    NSArray *commands = nil;
+    // Xcode 6.0 ETC
+    if ([(id)buildContext respondsToSelector:@selector(commands)]) {
+        commands = [buildContext commands];
+    } else {
+        // Xcode 7.0
+        [buildContext waitForDependencyGraph];
+        [buildContext lockDependencyGraph];
+        commands = [[[buildContext dependencyNodeForPath:fileURL.path] consumerCommands] allObjects];
+        [buildContext unlockDependencyGraph];
+    }
+
     [self.console debug:[NSString stringWithFormat:@"Commands : %@", commands]];
 
     [commands enumerateObjectsUsingBlock:^(XC(XCDependencyCommand) command, NSUInteger idx, BOOL *stop) {

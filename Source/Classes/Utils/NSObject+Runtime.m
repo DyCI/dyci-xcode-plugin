@@ -16,7 +16,7 @@
     unsigned count;
     objc_property_t *properties = class_copyPropertyList([self class], &count);
 
-    NSMutableArray *rv = [NSMutableArray array];
+    NSMutableArray<NSString *> *rv = [NSMutableArray<NSString *> array];
 
     unsigned i;
     for (i = 0; i < count; i++)
@@ -47,6 +47,6 @@
     for(i=0;i<mc;i++)
         NSLog(@"Method no #%d: -%s", i, sel_getName(method_getName(mlist[i])));
     free(mlist);
-
 }
+
 @end

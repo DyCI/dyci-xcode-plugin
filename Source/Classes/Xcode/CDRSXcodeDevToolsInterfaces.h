@@ -22,17 +22,29 @@
 @end
 
 
+@protocol XCP(XCDependencyNode)
+
+- (NSSet *)consumerCommands;
+
+@end
 @protocol XCP(PBXTargetBuildContext)
 
 - (NSArray *)commands;
 
+- (void)lockDependencyGraph;
+- (void)unlockDependencyGraph;
+- (XC(XCDependencyNode))dependencyNodeForPath:(NSString *)path;
+
+- (void)waitForDependencyGraph;
 @end
 
 @protocol XCP(PBXTarget)
 
 - (XC(PBXTargetBuildContext))targetBuildContext;
+- (BOOL)containsFileReferenceForAbsolutePath:(NSString *)path;
 
 @end
+
 
 
 @protocol XCP(XCDependencyCommand)
@@ -57,6 +69,7 @@
 + (NSArray *)openProjects;
 
 - (XC(PBXTarget))activeTarget;
+- (NSArray *)targets;
 + (XC(PBXProject))projectWrapperPathForPath:(NSString *)path;
 
 @end
