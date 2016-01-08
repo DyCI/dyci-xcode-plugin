@@ -111,7 +111,7 @@
     for (XC(PBXTarget) suggestedTarget in suggested_targets) {
         NSObject *targetObjectID = [(id) suggestedTarget valueForKey:@"objectID"];
         [self.console debug:[NSString stringWithFormat:@"Suggsested target obejct ID %@", targetObjectID]];
-        if ([activeRunContextTargetsIds containsObject:targetObjectID]) {
+        if (targetObjectID) {
             [self.console debug:[NSString stringWithFormat:@"Returning suggested target : %@ == %@", suggestedTarget, targetObjectID]];
             return suggestedTarget;
         }
