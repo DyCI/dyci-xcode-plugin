@@ -24,6 +24,8 @@
 #import <AppKit/AppKit.h>
 #import "DYCI_CCPShellRunner.h"
 #import "DYCI_CCPRunOperation.h"
+#import "DYCI_CCPXCodeConsole.h"
+#import "SFDYCIErrorFactory.h"
 
 @implementation DYCI_CCPShellRunner
 
@@ -46,5 +48,42 @@
     };
     [operationQueue addOperation:operation];
 }
+
++ (void)runShellCommand:(NSString *)command
+               withArgs:(NSArray *)args
+              directory:(NSString *)directory
+            environment:(NSMutableDictionary *)environment
+                console:(id <DYCI_CCPXCodeConsoleProtocol>)console
+             completion:(void (^)(NSError *))completion {
+    [DYCI_CCPShellRunner
+        runShellCommand:command
+               withArgs:args
+              directory:directory
+            environment:environment
+             completion:^(NSTask *t) {
+                 @try {
+                     if (t.terminationStatus != 0) {
+                         [console error:[NSString stringWithFormat:@"Task failed %@ + %@", command, args]];
+                         [console error:[NSString stringWithFormat:@"Task failed %i", t.terminationStatus]];
+                         [console error:[NSString stringWithFormat:@"Task failed %@", t.standardError]];
+                         if (completion) {
+                             completion([SFDYCIErrorFactory compilationErrorWithMessage:[t.standardError copy]]);
+                         }
+                     } else {
+                         [console log:[NSString stringWithFormat:@"Task completed %@", @(t.terminationStatus)]];
+                         if (completion) {
+                             completion(nil);
+                         }
+                     }
+                 } @catch (NSException *e) {
+                     [console error:[NSString stringWithFormat:@"Task failed %@ + %@", command, args]];
+                     if (completion) {
+                         completion([SFDYCIErrorFactory compilationErrorWithMessage:[t.standardError copy]]);
+                     }
+                 }
+             }];
+
+}
+
 
 @end

@@ -54,10 +54,15 @@
         commands = [buildContext commands];
     } else {
         // Xcode 7.0
-        [buildContext waitForDependencyGraph];
-        [buildContext lockDependencyGraph];
-        commands = [[[buildContext dependencyNodeForPath:fileURL.path] consumerCommands] allObjects];
-        [buildContext unlockDependencyGraph];
+        @try {
+            [buildContext waitForDependencyGraph];
+            [buildContext lockDependencyGraph];
+            commands = [[[buildContext dependencyNodeForPath:fileURL.path] consumerCommands] allObjects];
+            [buildContext unlockDependencyGraph];
+        }
+        @catch (NSException *exception) {
+            [self.console error:@"Cannot get file relation to the target. Please run project again. ¯\\_(ツ)_/¯"];
+        }
     }
 
     [self.console debug:[NSString stringWithFormat:@"Commands : %@", commands]];
@@ -115,29 +120,12 @@
     [self.console debug:[NSString stringWithFormat:@"Task started %@ + %@", command.commandPath, command.arguments]];
     [self.console log:[NSString stringWithFormat:@"Injection started"]];
 
-    [DYCI_CCPShellRunner runShellCommand:command.commandPath withArgs:command.arguments directory:command.workingDirectoryPath environment:[command.environment mutableCopy]
-                              completion:^(NSTask *t) {
-                                  @try {
-                                      if (t.terminationStatus != 0) {
-                                          [self.console error:[NSString stringWithFormat:@"Task failed %@ + %@", command.commandPath, command.arguments]];
-                                          [self.console error:[NSString stringWithFormat:@"Task failed %i", t.terminationStatus]];
-                                          [self.console error:[NSString stringWithFormat:@"Task failed %@", t.standardError]];
-                                          if (completion) {
-                                              completion([SFDYCIErrorFactory compilationErrorWithMessage:[t.standardError copy]]);
-                                          }
-                                      } else {
-                                          [self.console log:[NSString stringWithFormat:@"Task completed %@", @(t.terminationStatus)]];
-                                          if (completion) {
-                                              completion(nil);
-                                          }
-                                      }
-                                  } @catch (NSException * e) {
-                                      [self.console error:[NSString stringWithFormat:@"Task failed %@ + %@", command.commandPath, command.arguments]];
-                                      if (completion) {
-                                          completion([SFDYCIErrorFactory compilationErrorWithMessage:[t.standardError copy]]);
-                                      }
-                                  }
-                              }];
+    [DYCI_CCPShellRunner runShellCommand:command.commandPath
+                                withArgs:command.arguments
+                               directory:command.workingDirectoryPath
+                             environment:[command.environment mutableCopy]
+                                 console:self.console
+                              completion:completion];
 
 }
 
@@ -153,6 +141,8 @@
 
 
 - (void)createDynamiclibraryWithCommand:(id <CDRSXcode_XCDependencyCommand>)command completion:(void (^)(NSError *))completion {
+
+    void (^safeCompletion)(NSError *) = completion ?: ^(NSError * error){};
 
     SFDYCIClangParams * clangParams = [self.clangParamsExtractor extractParamsFromArguments:command.arguments];
     [self.console debug:[NSString stringWithFormat:@"Clang params extracted : %@", clangParams]];
@@ -200,52 +190,60 @@
     [dlybArguments addObjectsFromArray:clangParams.LParams];
     [dlybArguments addObjectsFromArray:clangParams.FParams];
 
+    NSString *outputPath = [[@"~/.dyci" stringByExpandingTildeInPath] stringByAppendingPathComponent:libraryName];
     [dlybArguments addObjectsFromArray:
-      @[
-        clangParams.objectCompilationPath,
-        @"-install_name", [NSString stringWithFormat:@"/usr/local/lib/%@", libraryName],
-        @"-Xlinker",
-        @"-objc_abi_version",
-        @"-Xlinker",
-        @"2",
-        @"-ObjC",
-        @"-undefined",
-        @"dynamic_lookup",
-        @"-fobjc-arc",
-        @"-fobjc-link-runtime",
-        @"-Xlinker",
-        @"-no_implicit_dylibs",
-        clangParams.minOSParams,
-        @"-single_module",
-        @"-compatibility_version",
-        @"5",
-        @"-current_version",
-        @"5",
-        @"-o",
-        [[@"~/.dyci" stringByExpandingTildeInPath] stringByAppendingPathComponent:libraryName]
-        //, @"-v"
-      ]
+        @[
+            clangParams.objectCompilationPath,
+            @"-install_name", [NSString stringWithFormat:@"/usr/local/lib/%@", libraryName],
+            @"-Xlinker",
+            @"-objc_abi_version",
+            @"-Xlinker",
+            @"2",
+            @"-ObjC",
+            @"-undefined",
+            @"dynamic_lookup",
+            @"-fobjc-arc",
+            @"-fobjc-link-runtime",
+            @"-Xlinker",
+            @"-no_implicit_dylibs",
+            clangParams.minOSParams,
+            @"-single_module",
+            @"-compatibility_version",
+            @"5",
+            @"-current_version",
+            @"5",
+            @"-o",
+            outputPath
+            //, @"-v"
+        ]
     ];
 
 
     DYCI_CCPXCodeConsole *console = [DYCI_CCPXCodeConsole consoleForKeyWindow];
     [console debug:[NSString stringWithFormat:@"Task started %@ + %@", command.commandPath, dlybArguments]];
 
-    [DYCI_CCPShellRunner runShellCommand:command.commandPath withArgs:dlybArguments directory:command.workingDirectoryPath environment:[command.environment mutableCopy]
-                              completion:^(NSTask *t) {
-                                  if (t.terminationStatus != 0) {
-                                      [console error:[NSString stringWithFormat:@"Task failed %@ + %@", command.commandPath, command.arguments]];
-                                      [console error:[NSString stringWithFormat:@"Task failed %i", t.terminationStatus]];
-                                      [console error:[NSString stringWithFormat:@"Task failed %@", t.standardError]];
-                                      if (completion) {
-                                          completion([SFDYCIErrorFactory compilationErrorWithMessage:[t.standardError copy]]);
-                                      }
-                                  } else {
-                                      [console log:[NSString stringWithFormat:@"Task completed %@", @(t.terminationStatus)]];
-                                      if (completion) {
-                                          completion(nil);
-                                      }
+    [DYCI_CCPShellRunner runShellCommand:command.commandPath
+                                withArgs:dlybArguments
+                               directory:command.workingDirectoryPath
+                             environment:[command.environment mutableCopy]
+                                 console:self.console
+                              completion:^(NSError *error) {
+                                  if (error) {
+                                      safeCompletion(error);
+                                      return;
                                   }
+
+                                  [DYCI_CCPShellRunner runShellCommand:@"/usr/bin/codesign"
+                                                              withArgs:@[@"--force", @"--sign", @"-", outputPath]
+                                                             directory:command.workingDirectoryPath
+                                                           environment:[command.environment mutableCopy]
+                                                               console:self.console
+                                                            completion:^(NSError *error2) {
+                                                                safeCompletion(error2);
+                                                            }];
+
+;
+
                               }];
 
 }

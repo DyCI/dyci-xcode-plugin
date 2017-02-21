@@ -23,7 +23,21 @@
 
 #import <AppKit/AppKit.h>
 
-@interface DYCI_CCPXCodeConsole : NSObject
+@protocol DYCI_CCPXCodeConsoleProtocol
+
+@property(nonatomic, assign) BOOL shouldShowDebugInfo;
+
+- (void)appendText:(NSString*)text;
+- (void)appendText:(NSString*)text color:(NSColor*)color;
+
+- (void)debug:(id)obj;
+- (void)debug:(id)obj color:(NSColor *)color;
+- (void)log:(id)obj;
+- (void)error:(id)obj;
+
+@end
+
+@interface DYCI_CCPXCodeConsole : NSObject<DYCI_CCPXCodeConsoleProtocol>
 
 + (instancetype)consoleForKeyWindow;
 
